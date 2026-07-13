@@ -1,0 +1,44 @@
+name: 트리 빌드 & 배포
+
+# docs/ 에 무언가 push 되면 자동으로 실행됩니다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # 필요하면 Actions 탭에서 수동 실행도 가능
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 여러 번 push해도 마지막 것만 배포되도록
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 폴더를 훑어 트리(manifest.json) 자동 생성 — 사람이 목차 손댈 필요 없음
+      - name: 트리 생성
+        run: node scripts/build-tree.mjs
+
+      - uses: actions/configure-pages@v5
+
+      # index.html + docs/ + manifest.json 통째로 배포
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

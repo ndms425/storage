@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면·API 흐름 교차 추적</title>
+<style>
+  :root{
+    --ink:#161a1f; --paper:#f6f4ef; --panel:#ffffff; --line:#e2ddd2;
+    --log:#7c3aed; --log-soft:#f1ebfb; --log-line:#c9b3ec;
+    --fe:#c2410c; --fe-soft:#fdeee6; --fe-line:#e8b79a;
+    --match:#0f766e; --match-soft:#e4f1ef;
+    --noise:#c0392b; --noise-soft:#fbeaea;
+    --advisory:#7a4bb5; --advisory-bg:#f3edfa;
+    --muted:#6b6f78;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px; margin:0 auto; padding:34px 24px 100px}
+  header.top{border-bottom:2px solid var(--ink); padding-bottom:18px}
+  .kicker{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  h1{font-size:27px; margin:6px 0 8px}
+  .concept{font-size:14px; color:#444; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:14px 18px; margin-top:14px; line-height:1.7}
+  .concept b{color:var(--match)}
+  .logsrc{margin-top:10px; font-size:12.5px; background:var(--log-soft); border:1px solid var(--log-line);
+    border-radius:10px; padding:10px 14px; color:#5b21b6}
+  .logsrc b{color:var(--log)}
+  .insight-box{margin-top:24px; background:#fff7ed; border:1px solid #f0c68a; border-radius:14px; padding:18px 22px}
+  .insight-box .it{font-size:15px; font-weight:800; color:#b45309; margin-bottom:8px}
+  .insight-box .ix{font-size:13.5px; color:#7a5210; line-height:1.7}
+  .insight-box .iu{font-size:12.5px; color:#92600e; margin-top:10px; padding-top:10px; border-top:1px dashed #e0b877; font-style:italic}
+
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin:22px 0 8px; font-size:12.5px; color:var(--muted)}
+  .legend .k{display:inline-flex; align-items:center; gap:6px}
+  .legend .ln{width:22px; height:0; border-top:2px solid; display:inline-block}
+  .legend .ln.match{border-color:var(--match)}
+  .legend .ln.noise{border-color:var(--noise); border-top-style:dashed}
+  .legend .ln.missing{border-color:#b8860b; border-top-style:dotted; border-top-width:2px}
+  .legend .sw{width:13px; height:13px; border-radius:3px; display:inline-block}
+
+  .figwrap{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px 14px; overflow-x:auto; margin-top:6px}
+  svg{display:block; margin:0 auto; min-width:820px}
+
+  .readout{margin-top:18px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .ro{border-radius:12px; padding:14px 18px; font-size:13.5px}
+  .ro.match{background:var(--match-soft); border:1px solid var(--match)}
+  .ro.noise{background:var(--noise-soft); border:1px solid var(--noise)}
+  .ro .rt{font-weight:800; margin-bottom:6px; font-size:13px}
+  .ro.match .rt{color:var(--match)} .ro.noise .rt{color:var(--noise)}
+
+  .adv-layer{margin:34px 0 8px}
+  .layer-title{font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:800;
+    padding:7px 14px; border-radius:7px; display:inline-block; margin-bottom:14px; color:#fff; background:var(--advisory)}
+  .adv{border-left:4px solid var(--advisory); background:var(--advisory-bg); padding:13px 18px;
+    border-radius:0 10px 10px 0; margin-bottom:11px}
+  .adv .tag{font-size:11px; font-weight:800; color:var(--advisory); text-transform:uppercase}
+  .adv .txt{font-size:14px; margin-top:5px; line-height:1.68}
+  footer{margin-top:48px; padding-top:18px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
+  @media(max-width:680px){ .readout{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="kicker">PoC 설명자료 · 흐름 교차 추적</div>
+    <h1>화면 · API 흐름 교차 추적</h1>
+    <div class="concept" id="concept"></div>
+    <div class="logsrc" id="logsrc"></div>
+  </header>
+
+  <div class="legend">
+    <div class="k"><span class="sw" style="background:var(--fe-soft);border:1.5px solid var(--fe-line)"></span>화면 흐름 (FE · 위)</div>
+    <div class="k"><span class="sw" style="background:var(--log-soft);border:1.5px solid var(--log-line)"></span>API 시계열 (Log · 아래)</div>
+    <div class="k"><span class="ln match"></span>일치 (진짜 흐름)</div>
+    <div class="k"><span class="ln noise"></span>로그에만 있음 (노이즈)</div>
+    <div class="k"><span class="ln missing"></span>화면에만 있음 (미호출·미테스트)</div>
+  </div>
+
+  <div class="figwrap" id="figwrap"></div>
+  <div class="readout" id="readout"></div>
+  <div id="layers"></div>
+
+  <footer>
+    위(화면 흐름)와 아래(API 시계열)를 세로선으로 대조합니다. 화면에 묶인 API는 초록(일치), 화면에 없는 API는 빨강 점선(노이즈)으로 그 자리에서 판별됩니다.
+  </footer>
+</div>
+
+<script>
+const F = {
+  "meta": {
+    "title": "화면·API 흐름 교차 추적",
+    "concept": "Log의 API 흐름(단독으론 진위 판단 불가) + FE의 화면묶음·화면 흐름을 접목 → 일치점을 찾아 신뢰성 있는 흐름 추적"
+  },
+  "step1": {
+    "title": "① Log — API 흐름 (단독)",
+    "desc": "log에서 시계열로 흐르는 API. 사용자/서버로 구분. 단, 이것만으로는 진짜 흐름인지 판단 불가.",
+    "limit": "API 호출이 시간순으로 찍혀있을 뿐, 어떤 게 의미 있는 연결인지 불확실",
+    "lanes": [
+      {
+        "who": "사용자 A",
+        "type": "user",
+        "seq": [
+          "A001",
+          "A002",
+          "B001",
+          "C001"
+        ]
+      },
+      {
+        "who": "서버",
+        "type": "server",
+        "seq": [
+          "A001",
+          "A002",
+          "X999",
+          "B001"
+        ]
+      }
+    ]
+  },
+  "step2": {
+    "title": "② FE — 화면묶음 + 화면 흐름",
+    "desc": "화면에 API가 어떻게 묶여있는지 + 화면 간 연계 흐름",
+    "screens": [
+      {
+        "name": "A 화면",
+        "apis": [
+          "A001",
+          "A002",
+          "A003"
+        ]
+      },
+      {
+        "name": "B 화면",
+        "apis": [
+          "B001"
+        ]
+      },
+      {
+        "name": "C 화면",
+        "apis": [
+          "C001"
+        ]
+      }
+    ],
+    "screenFlow": [
+      "A 화면",
+      "B 화면",
+      "C 화면"
+    ]
+  },
+  "step3": {
+    "title": "③ 접목 → 일치점 추적",
+    "desc": "API 흐름을 화면묶음 기준으로 재해석. 화면 흐름과 일치하는 API 시퀀스만 '진짜 흐름'으로 확정.",
+    "matched": [
+      {
+        "api": "A001",
+        "screen": "A 화면",
+        "match": true
+      },
+      {
+        "api": "A002",
+        "screen": "A 화면",
+        "match": true
+      },
+      {
+        "api": "B001",
+        "screen": "B 화면",
+        "match": true
+      },
+      {
+        "api": "C001",
+        "screen": "C 화면",
+        "match": true
+      },
+      {
+        "api": "X999",
+        "screen": "?",
+        "match": false,
+        "note": "화면 묶음에 없음 → 노이즈로 판별"
+      }
+    ],
+    "result": "A화면(A001,A002) → B화면(B001) → C화면(C001) 흐름이 화면 흐름과 일치 → 신뢰. X999는 화면에 없어 제외."
+  },
+  "advisories": [
+    {
+      "id": "ADV-51",
+      "type": "매칭 로직",
+      "text": "API 흐름과 화면 흐름의 '일치'를 판정할 때, 화면묶음에 속하지 않는 API(X999 예시)는 노이즈/배치작업/외부호출일 수 있음. 화면 흐름에 매핑 안 되는 API를 제외하는 것이 핵심 필터. 단, 정당한 비화면 API(스케줄러 등)를 무조건 노이즈 처리하면 안 되므로 예외 목록 관리 필요."
+    },
+    {
+      "id": "ADV-52",
+      "type": "사용자/서버 구분 의미",
+      "text": "사용자 흐름과 서버 흐름을 나눠 보는 이유: 사용자 흐름은 실제 화면 조작 순서에 가깝고(화면 흐름과 대조 적합), 서버 흐름은 내부 연쇄호출까지 포함. 화면 흐름 매칭에는 사용자 흐름이 1차 기준, 서버 흐름은 보조로 쓰는 게 합리적."
+    }
+  ],
+  "unified": {
+    "apiSeq": [
+      "A001",
+      "A002",
+      "X999",
+      "B001",
+      "C001"
+    ],
+    "screens": [
+      {
+        "name": "A 화면",
+        "apis": [
+          "A001",
+          "A002",
+          "A003"
+        ]
+      },
+      {
+        "name": "B 화면",
+        "apis": [
+          "B001",
+          "B002"
+        ]
+      },
+      {
+        "name": "C 화면",
+        "apis": [
+          "C001"
+        ]
+      }
+    ],
+    "apiToScreen": {
+      "A001": "A 화면",
+      "A002": "A 화면",
+      "A003": "A 화면",
+      "B001": "B 화면",
+      "B002": "B 화면",
+      "C001": "C 화면",
+      "X999": null
+    },
+    "serverNote": "서버 흐름(내부 연쇄호출)은 별도 레인으로 존재하나, 화면 매칭에는 사용자 흐름을 1차 기준으로 사용.",
+    "screenOnly": [
+      "A003",
+      "B002"
+    ],
+    "logOnly": [
+      "X999"
+    ]
+  },
+  "logSource": {
+    "type": "application log",
+    "note": "화면 흐름과 매칭하는 로그는 실제 사용 맥락이 담긴 application log. aTworks 자체 test 로그(단건 반복)는 여기 대상 아님 — 반복 단건이라 화면 흐름과 안 맞는 게 정상이므로."
+  },
+  "flowInsight": {
+    "title": "흐름 레벨 인사이트 — 테스트 유효성 반문",
+    "text": "API 흐름이 유사/반복적으로 대량 수행됐는데도 화면묶음·binding flow와 매칭되는 시퀀스가 없다면, \"이 테스트 흐름이 실제 사용자 경로를 검증한 것인가\"를 되물어야 함. 호출 양이 아니라 화면 흐름 정합률이 진짜 커버리지 지표.",
+    "usage": "개발/단위테스트 단계에선 이 정보를 수집·분석만 하고, 통합테스트 진입 전에 \"이런 시나리오를 테스트하라\"는 추천으로 제공."
+  }
+};
+document.getElementById('concept').innerHTML = F.meta.concept;
+
+const U = F.unified;
+const seq = U.apiSeq;               // 로그 시계열 (사용자)
+const screens = U.screens;
+const a2s = U.apiToScreen;
+const screenOnly = U.screenOnly||[]; // 화면엔 있고 로그엔 없음
+const logOnly = U.logOnly||[];       // 로그엔 있고 화면엔 없음
+
+const W=980, padL=40, padR=40;
+
+// ===== 전체 컬럼 구성: 로그 시계열 순서를 기준으로 하되,
+// 화면-only API(A003,B002)를 소속 화면의 마지막 로그 API 근처에 끼워넣음 =====
+// 간단화: 컬럼 순서 = A001,A002,A003(screenOnly),X999,B001,B002(screenOnly),C001
+const columns = [];
+seq.forEach(api=>{
+  columns.push(api);
+  // 이 api가 속한 화면의 screenOnly API를, 다음 로그 api가 다른 화면이면 여기서 방출
+});
+// screenOnly API를 소속 화면의 로그 API 바로 뒤에 삽입
+function insertScreenOnly(){
+  const result=[];
+  const placed=new Set();
+  for(let i=0;i<seq.length;i++){
+    result.push(seq[i]);
+    const scr=a2s[seq[i]];
+    // 같은 화면 소속 screenOnly 중 아직 안 놓인 것, 다음 seq가 다른 화면일 때 삽입
+    const nextScr = i+1<seq.length ? a2s[seq[i+1]] : null;
+    if(scr && scr!==nextScr){
+      screenOnly.forEach(so=>{
+        if(a2s[so]===scr && !placed.has(so)){ result.push(so); placed.add(so); }
+      });
+    }
+  }
+  // 안 놓인 screenOnly는 끝에
+  screenOnly.forEach(so=>{ if(!placed.has(so)){ result.push(so); placed.add(so);} });
+  return result;
+}
+const cols = insertScreenOnly();
+
+const innerW = W - padL - padR;
+const slotW = innerW / cols.length;
+const xOf = {};
+cols.forEach((api,i)=>{ xOf[api] = padL + slotW*i + slotW/2; });
+
+const screenY=76, screenH=80, apiY=310, apiChipH=34, H=410;
+
+let svg=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="inherit">
+<defs>
+  <marker id="feAr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#c2410c"/></marker>
+  <marker id="logAr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c3aed"/></marker>
+</defs>`;
+
+/* ===== 상단: 화면 흐름 (소속 API 전체를 x슬롯에 배치) ===== */
+const screenBoxes={};
+screens.forEach(sc=>{
+  const xs=sc.apis.filter(a=>xOf[a]!==undefined).map(a=>xOf[a]);
+  if(xs.length===0){ screenBoxes[sc.name]=null; return; }
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const bx=minX-slotW/2+6, bw=(maxX-minX)+slotW-12;
+  screenBoxes[sc.name]={x:bx,w:bw,cx:(minX+maxX)/2};
+  svg+=`<rect x="${bx}" y="${screenY}" width="${bw}" height="${screenH}" rx="12" fill="var(--fe-soft)" stroke="var(--fe-line)" stroke-width="1.5"/>
+    <text x="${(minX+maxX)/2}" y="${screenY+20}" text-anchor="middle" font-size="13" font-weight="800" fill="#c2410c">${sc.name}</text>`;
+  sc.apis.forEach(a=>{
+    if(xOf[a]===undefined) return;
+    const isMissing = screenOnly.includes(a);
+    svg+=`<text x="${xOf[a]}" y="${screenY+50}" text-anchor="middle" font-size="12" font-weight="700" fill="${isMissing?'#b8860b':'#9a3412'}">${a}${isMissing?' *':''}</text>`;
+  });
+});
+const flow=F.step2.screenFlow;
+for(let i=0;i<flow.length-1;i++){
+  const a=screenBoxes[flow[i]], b=screenBoxes[flow[i+1]];
+  if(a&&b) svg+=`<line x1="${a.x+a.w}" y1="${screenY+screenH/2}" x2="${b.x}" y2="${screenY+screenH/2}" stroke="#c2410c" stroke-width="2" marker-end="url(#feAr)"/>`;
+}
+svg+=`<text x="${padL}" y="${screenY-14}" font-size="12" font-weight="700" fill="#c2410c">▲ 화면 흐름 (FE) &nbsp;&nbsp;<tspan fill="#b8860b" font-size="10">* = 로그에 없음(미호출)</tspan></text>`;
+
+/* ===== 하단: API 시계열 (로그에 있는 것만) ===== */
+svg+=`<text x="${padL}" y="${apiY-16}" font-size="12" font-weight="700" fill="#7c3aed">▼ API 흐름 · 사용자 (Log · 시계열)</text>`;
+// 로그 시퀀스만 순서대로 칩 + 화살표
+seq.forEach((api,i)=>{
+  const cx=xOf[api], noise=logOnly.includes(api);
+  const col=noise?'var(--noise)':'var(--log)', bg=noise?'var(--noise-soft)':'var(--log-soft)';
+  svg+=`<rect x="${cx-38}" y="${apiY}" width="76" height="${apiChipH}" rx="9" fill="${bg}" stroke="${col}" stroke-width="1.5"/>
+    <text x="${cx}" y="${apiY+22}" text-anchor="middle" font-size="12.5" font-weight="800" fill="${col}">${api}</text>`;
+  if(i<seq.length-1){
+    const nx=xOf[seq[i+1]];
+    svg+=`<line x1="${cx+38}" y1="${apiY+apiChipH/2}" x2="${nx-38}" y2="${apiY+apiChipH/2}" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#logAr)"/>`;
+  }
+});
+svg+=`<text x="${W-padR}" y="${apiY+apiChipH+22}" text-anchor="end" font-size="11" font-style="italic" fill="#888">시간 흐름 →</text>`;
+
+/* ===== 세로 연결선 (3가지 상태) ===== */
+cols.forEach(api=>{
+  const cx=xOf[api];
+  const y1=screenY+screenH, y2=apiY;
+  const inLog = seq.includes(api);
+  const inScreen = a2s[api]!==null && a2s[api]!==undefined;
+  if(inLog && inScreen){
+    // 일치: 초록 실선
+    svg+=`<line x1="${cx}" y1="${y1}" x2="${cx}" y2="${y2}" stroke="var(--match)" stroke-width="2"/>
+      <circle cx="${cx}" cy="${y1}" r="3.5" fill="var(--match)"/><circle cx="${cx}" cy="${y2}" r="3.5" fill="var(--match)"/>`;
+  } else if(inLog && !inScreen){
+    // 로그에만: 노이즈 (위로 못 감)
+    svg+=`<line x1="${cx}" y1="${y2}" x2="${cx}" y2="${y2-40}" stroke="var(--noise)" stroke-width="2" stroke-dasharray="5 4"/>
+      <text x="${cx}" y="${y2-48}" text-anchor="middle" font-size="14" font-weight="800" fill="var(--noise)">✕</text>
+      <text x="${cx}" y="${y2-62}" text-anchor="middle" font-size="9" fill="var(--noise)">화면 없음</text>`;
+  } else if(!inLog && inScreen){
+    // 화면에만: 미호출 (아래로 못 감)
+    svg+=`<line x1="${cx}" y1="${y1}" x2="${cx}" y2="${y1+40}" stroke="#b8860b" stroke-width="2" stroke-dasharray="2 3"/>
+      <text x="${cx}" y="${y1+56}" text-anchor="middle" font-size="14" font-weight="800" fill="#b8860b">✕</text>
+      <text x="${cx}" y="${y1+70}" text-anchor="middle" font-size="9" fill="#b8860b">로그 없음</text>`;
+  }
+});
+svg+=`<text x="${padL}" y="${(screenY+screenH+apiY)/2+4}" font-size="11" fill="var(--match)" font-weight="700">↕ 일치점 대조</text>`;
+svg+=`</svg>`;
+document.getElementById('figwrap').innerHTML=svg;
+
+// 로그 소스 정의
+document.getElementById('logsrc').innerHTML =
+  `<b>📌 이 도식의 로그 = ${F.logSource.type}</b> · ${F.logSource.note}`;
+
+document.getElementById('readout').innerHTML=`
+  <div class="ro match"><div class="rt">✓ 일치 = 진짜 흐름</div>A화면(A001,A002) → B화면(B001) → C화면(C001)이 화면 흐름과 일치 → 신뢰.</div>
+  <div class="ro noise"><div class="rt">✕ 로그에만 있음 = 노이즈</div>X999는 어느 화면에도 안 묶임 → 배치/외부호출 등 노이즈로 판별해 제외.</div>
+  <div class="ro missing"><div class="rt">✕ 화면에만 있음 = 미호출·미테스트</div>A003·B002는 화면엔 정의됐으나 로그에 없음 → 아직 테스트 안 된 API로 진단(REQ-109 연계).</div>`;
+
+// 흐름 레벨 인사이트 박스
+const ib=document.createElement('div'); ib.className='insight-box';
+ib.innerHTML=`<div class="it">💡 ${F.flowInsight.title}</div>
+  <div class="ix">${F.flowInsight.text}</div>
+  <div class="iu">▶ 활용: ${F.flowInsight.usage}</div>`;
+document.getElementById('readout').after(ib);
+
+const layers=document.getElementById('layers');
+const advWrap=document.createElement('div'); advWrap.className='adv-layer';
+advWrap.innerHTML=`<span class="layer-title">Claude 자문 · Advisory</span>`;
+F.advisories.forEach(a=>{
+  advWrap.innerHTML+=`<div class="adv"><span class="tag">${a.type}</span><div class="txt">${a.text}</div></div>`;
+});
+layers.appendChild(advWrap);
+</script>
+</body>
+</html>

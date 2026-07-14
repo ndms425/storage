@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aTworks PoC — 시스템 구조도</title>
+<style>
+  :root{
+    --ink:#161a1f; --paper:#f6f4ef; --panel:#ffffff; --line:#e2ddd2;
+    --fe:#c2410c; --fe-soft:#fdeee6; --fe-line:#e8b79a;
+    --log:#7c3aed; --log-soft:#f1ebfb; --log-line:#c9b3ec;
+    --be:#1d4ed8; --be-soft:#e7edfc; --be-line:#a8bef0;
+    --cicd:#475569; --cicd-soft:#eef1f5;
+    --atw:#0f766e; --atw-soft:#e4f1ef;
+    --advisory:#7a4bb5; --advisory-bg:#f3edfa;
+    --issue:#c2410c; --issue-bg:#fdf0e8;
+    --muted:#6b6f78;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px; margin:0 auto; padding:34px 24px 100px}
+
+  header.top{border-bottom:2px solid var(--ink); padding-bottom:20px}
+  .kicker{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  h1{font-size:32px; margin:6px 0 4px; letter-spacing:-.015em}
+  .sub{color:var(--muted); font-size:14px}
+  .metabar{display:flex; gap:20px; flex-wrap:wrap; margin-top:14px; font-size:13px}
+  .metabar b{color:var(--ink)}
+
+  .def{background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:18px 24px; margin:24px 0}
+  .def .tag{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .def h2{font-size:19px; margin:6px 0 11px}
+  .def .facts{display:flex; gap:10px; flex-wrap:wrap}
+  .def .fact{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:7px 13px; font-size:13px}
+  .def .fact.warn{background:#fdeee6; border-color:var(--fe-line)}
+  .def .fact b{color:var(--fe)}
+
+  .hint{text-align:center; font-size:13px; color:var(--muted); margin:6px 0 18px}
+  .hint b{color:var(--atw)}
+
+
+  /* ===== 구조도 본체 ===== */
+  .diagram{display:flex; gap:18px; align-items:flex-start}
+  .stack{flex:1; min-width:0}
+
+  .layer{border-radius:16px; padding:16px 18px 18px; border:1.5px solid; margin:0}
+  .layer.fe{background:var(--fe-soft); border-color:var(--fe-line)}
+  .layer.log{background:var(--log-soft); border-color:var(--log-line)}
+  .layer.be{background:var(--be-soft); border-color:var(--be-line)}
+  .layer.cicd{background:var(--cicd-soft); border-color:#c3ccd6}
+  .layer-tag{display:inline-block; font-size:12px; font-weight:800; color:#fff; padding:4px 12px; border-radius:8px; margin-bottom:14px}
+  .layer.fe .layer-tag{background:var(--fe)}
+  .layer.log .layer-tag{background:var(--log)}
+  .layer.be .layer-tag{background:var(--be)}
+  .layer.cicd .layer-tag{background:var(--cicd)}
+  .layer-tag .q{opacity:.75; font-weight:600; margin-left:6px; font-size:11px}
+
+  /* 핵심: 4컬럼 공유 그리드 — 세 층이 같은 컬럼 구조를 공유해 세로 정렬 */
+  .grid4{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px}
+  .grid4.align-top{align-items:start}
+  .cell{min-width:0; width:100%; display:flex; flex-direction:column; gap:10px}
+  /* 4칸 균등 그리드 — 카드가 기준, 화면은 그 위 그룹 라벨로 */
+  .api-grid4{display:grid; grid-template-columns:repeat(4, 1fr); gap:12px 14px; align-items:start}
+  .grp-label{font-size:12px; font-weight:800; padding:6px 12px; border-radius:8px 8px 0 0; margin-bottom:-4px}
+  .grp-A-label, .grp-B-label{background:var(--fe-soft); color:var(--fe); border:1px solid var(--fe-line); border-bottom:none}
+  .log-grp-label{background:var(--log-soft); color:var(--log); border:1px solid var(--log-line); border-bottom:none}
+  .be-grp-label{background:var(--be-soft); color:var(--be); border:1px solid var(--be-line); border-bottom:none}
+
+  /* 화면 영역 배경 (카드들 뒤에 깔리는 그룹 박스) */
+  .layer.fe .api-grid4{position:relative}
+  /* 화면 그룹 배경 박스 (카드 뒤에 깔림) */
+  .grp-bg{border-radius:0 0 10px 10px; z-index:0}
+  .grp-bg.a{grid-column:1 / span 3; background:rgba(194,65,11,.05); border:1px solid var(--fe-line); border-top:none}
+  .grp-bg.b{grid-column:4 / span 1; background:rgba(194,65,11,.05); border:1px solid var(--fe-line); border-top:none}
+  .layer.log .grp-bg{border-color:var(--log-line); background:rgba(124,58,237,.05)}
+  .layer.be .grp-bg{border-color:var(--be-line); background:rgba(29,78,216,.05)}
+  .api-grid4 > .api-card, .api-grid4 > .log-card, .api-grid4 > .spec-card{z-index:1}
+
+
+
+  /* 화면 그리드: A화면(3칸) + B화면(1칸) = 4컬럼 정렬 유지 */
+  .screen-grid{grid-template-columns:repeat(4, 1fr)}
+  .screen-box{border:1.5px solid var(--fe-line); border-radius:12px; padding:12px; background:#fff; width:100%; box-sizing:border-box}
+  .screen-A{grid-column:1 / span 3}
+  .screen-B{grid-column:4 / span 1}
+  .screen-name{font-size:13px; font-weight:800; color:var(--fe); margin-bottom:10px}
+  .api-inrow{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; width:100%}
+  .in-flow{margin-top:10px; text-align:center}
+  .in-flow .fa, .cross-flow .fa{font-size:12px; font-weight:700; color:var(--fe); background:#fff; border:1px solid var(--fe-line); border-radius:20px; padding:4px 13px; display:inline-block}
+  .in-flow .fa b, .cross-flow .fa b{color:#c2410c; margin:0 3px}
+  .cross-flow{margin-top:12px; text-align:center}
+  .cross-flow .fa em{font-style:normal; color:#a15a3a; font-weight:500; font-size:11px}
+
+  /* Log/BE 그룹 박스 — FE 화면박스와 동일 규격(대칭)으로 API x정렬 보장 */
+  .group-box{border:1.5px solid var(--line); border-radius:12px; padding:12px; background:rgba(255,255,255,.5); width:100%; box-sizing:border-box}
+  .grp-A{grid-column:1 / span 3}
+  .grp-B{grid-column:4 / span 1}
+  .group-name{font-size:12px; font-weight:800; margin-bottom:10px; color:var(--muted)}
+  .layer.log .group-box{border-color:var(--log-line)}
+  .layer.log .group-name{color:var(--log)}
+  .layer.be .group-box{border-color:var(--be-line)}
+  .layer.be .group-name{color:var(--be)}
+  /* B화면: A화면 한 칸과 동일 폭 유지 위해 3칸 그리드에 1개만 배치 */
+  .screen-B .api-inrow, .grp-B .api-inrow{grid-template-columns:repeat(3, minmax(0,1fr))}
+  .ph{visibility:hidden; min-height:39px}
+  /* 카드가 칸을 꽉 채워 폭 통일 */
+  .api-card, .log-card, .spec-card{width:100%}
+  .cell > .api-card, .cell > .log-card, .cell > .spec-card{width:100%}
+
+  /* 저장 정보 카드 */
+  .info-set{margin-top:12px; padding-top:10px; border-top:1px dashed var(--line)}
+  .info-set-t{font-size:10px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:7px}
+  .info-card{display:inline-block; font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; margin:0 6px 6px 0; border:1.5px solid}
+  .fe-info{background:var(--fe-soft); border-color:var(--fe); color:var(--fe)}
+  .log-info{background:var(--log-soft); border-color:var(--log); color:var(--log)}
+  .be-info{background:var(--be-soft); border-color:var(--be); color:var(--be)}
+  .info-card[data-map=""]{opacity:.75}
+  .info-card.mapped{position:relative}
+
+  /* 매핑선 오버레이 */
+  .diagram-wrap{position:relative}
+  .atw .item{transition:.2s}
+  .atw .item.mapped{box-shadow:0 0 0 2px var(--atw); font-weight:700}
+  /* aTworks 저장항목 소스 색상 표시 */
+  .store-item{display:flex; flex-direction:column; align-items:flex-start; gap:3px}
+  .store-dots{display:inline-flex; gap:4px; align-items:center}
+  .src-dot{width:11px; height:11px; border-radius:3px; display:inline-block}
+  .src-dot.fe{background:var(--fe)}
+  .src-dot.log{background:var(--log)}
+  .src-dot.be{background:var(--be)}
+  .src-dot.support{opacity:.35}
+  .src-chip{display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; border:1px solid}
+  .src-chip.fe{background:var(--fe-soft); border-color:var(--fe-line); color:var(--fe)}
+  .src-chip.log{background:var(--log-soft); border-color:var(--log-line); color:var(--log)}
+  .src-chip.be{background:var(--be-soft); border-color:var(--be-line); color:var(--be)}
+  .src-chip.support{opacity:.7}
+  .store-label{font-weight:700}
+  .store-note{font-size:9.5px; color:var(--muted); font-weight:400; line-height:1.3}
+  .src-legend{display:flex; gap:10px; font-size:9.5px; color:var(--muted); margin-bottom:8px}
+  .src-legend span{display:inline-flex; align-items:center; gap:3px}
+
+
+  /* 연결 화살표 */
+  .connector{height:34px; display:flex; align-items:center; justify-content:center; position:relative}
+  .connector::before{content:''; position:absolute; left:50%; top:0; bottom:0; width:2px; background:#b9b3a6}
+  .connector .lbl{background:var(--paper); color:var(--muted); font-size:11px; padding:2px 10px; border-radius:10px; z-index:1; border:1px solid var(--line)}
+
+  /* API 세로 카드 (세로로 길고 좁게) */
+  .api-card{background:#fbf3ee; border:1px solid var(--fe-line); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:7px; min-height:0; white-space:nowrap}
+  .api-card.hl{background:#fbdcc9; border:2px solid var(--fe); box-shadow:0 2px 8px rgba(194,65,11,.14)}
+  .api-card .scr-badge{font-size:9px; font-weight:700; padding:1px 6px; border-radius:5px; align-self:center; color:#fff}
+  .api-card .scr-A{background:#c2410c} .api-card .scr-B{background:#9a3412}
+  .api-card .code{font-size:13px; font-weight:800; color:#9a3412}
+  .api-card .role{font-size:11px; color:#a15a3a}
+  .api-card .method{font-size:9px; color:#fff; background:var(--fe); border-radius:4px; padding:1px 5px; letter-spacing:.03em}
+
+  /* FE 흐름 화살표 표기 */
+  .flow-arrows{margin-top:14px; display:flex; gap:20px; flex-wrap:wrap; justify-content:center}
+  .flow-arrows .fa{font-size:12px; font-weight:700; color:var(--fe); background:#fff; border:1px solid var(--fe-line); border-radius:20px; padding:5px 14px}
+  .flow-arrows .fa b{color:#c2410c; margin:0 3px}
+  .flow-arrows .fa em{font-style:normal; color:#a15a3a; font-weight:500; font-size:11px}
+
+  /* Log 카드 (API 카드와 동일 크기) */
+  .log-card{background:#f4eefc; border:1px solid var(--log-line); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:7px; min-height:0; white-space:nowrap}
+  .log-card.hl{background:#e9dcfb; border:2px solid var(--log)}
+  .log-card .code{font-size:13px; font-weight:800; color:#5b21b6}
+  .log-card .tag2{font-size:9px; color:#7c3aed}
+
+  /* 상세 박스 (A001 칸 아래) */
+  .detail-box{border-radius:10px; padding:11px 13px; font-size:11px}
+  .log-detail{background:#fff; border:1px solid var(--log-line)}
+  .log-detail .dt{font-size:11.5px; font-weight:800; color:var(--log); margin-bottom:7px; display:flex; justify-content:space-between; align-items:center}
+  .log-detail .dt .badge{font-size:9px; color:#9a6fd0; font-weight:600}
+  .kv{font-size:11px; margin-bottom:3px}
+  .kv .k{font-weight:700; color:#5b21b6}
+  .kv .v{color:#666}
+  .kv-note{font-size:9.5px; color:#888; margin-top:7px; border-top:1px dashed var(--log-line); padding-top:6px}
+
+  /* BE spec 카드 */
+  .spec-card{background:#fff; border:1px solid var(--be-line); border-radius:8px; padding:7px 10px; display:flex; align-items:center; justify-content:center; gap:7px; min-height:0; white-space:nowrap}
+  .spec-card.hl{border:2px solid var(--be)}
+  .spec-card .sc-head{display:flex; align-items:center; gap:6px; margin:0}
+  .spec-card .sc-code{font-size:13px; font-weight:800; color:var(--be)}
+  .spec-card .sc-method{font-size:9px; color:#fff; background:var(--be); border-radius:5px; padding:1px 6px}
+  .spec-card .sc-path{font-size:10px; color:#5a7fd6; font-family:ui-monospace,Menlo,monospace}
+  .spec-card .sc-sum{font-size:11px; color:#555; margin-top:4px}
+  .be-detail{background:#0f1b33; border:1px solid var(--be)}
+  .be-detail .dt2{font-size:11.5px; font-weight:800; color:#8fb4ff; margin-bottom:8px}
+  .be-detail .spec-sec{margin-bottom:8px}
+  .be-detail .spec-sec .lbl{font-size:9.5px; font-weight:800; color:#8fb4ff; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px}
+  .be-detail .spec-field{font-size:10px; font-family:ui-monospace,Menlo,monospace; color:#cfe0ff; margin-bottom:2px}
+  .be-detail .spec-field .rule{color:#ff9a6b}
+  .be-detail .valid-item{font-size:10px; color:#cfe0ff; margin-bottom:2px}
+  .be-detail .valid-item::before{content:'¹3 '; color:#7ee0a0; font-weight:700}
+  .be-detail .xcheck{font-size:9.5px; color:#8a9bc0; margin-top:8px; font-style:italic; border-top:1px solid #2a3a5a; padding-top:6px}
+
+  /* CICD */
+  .cicd-body{display:flex; align-items:center; gap:20px; flex-wrap:wrap}
+  .cicd-role{font-size:13px; font-weight:800; color:var(--cicd); background:#fff; border:1px solid #c3ccd6; border-radius:8px; padding:8px 14px}
+  .cicd-desc{font-size:12px; color:#556; flex:1; min-width:200px}
+  .cicd-chip{display:inline-block; font-size:11px; background:#fff; border:1px solid #c3ccd6; border-radius:20px; padding:3px 11px; margin:2px 4px 2px 0; color:#556}
+
+  /* aTworks */
+  .atw{width:230px; flex-shrink:0; background:var(--atw-soft); border:2px solid var(--atw); border-radius:16px; padding:18px 16px; position:sticky; top:20px}
+  .atw h3{margin:0; font-size:18px; color:var(--atw); text-align:center}
+  .atw .subt{font-size:11px; color:#3a7f76; text-align:center; margin-bottom:14px}
+  .atw .sec-t{font-size:11px; font-weight:800; color:var(--atw); text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px}
+  .atw .item{background:#fff; border:1px solid var(--atw); border-radius:8px; padding:7px 12px; font-size:12px; color:#0f5f58; margin-bottom:7px}
+  .atw .item.diag{background:var(--atw); color:#fff; border:none}
+  .atw .inflow{font-size:10px; color:#3a7f76; text-align:center; margin:4px 0 10px; padding:5px; background:#d5e9e5; border-radius:6px}
+
+  /* 레이어 섹션 */
+  .adv-layer{margin:40px 0 8px}
+  .layer-title{font-size:12px; letter-spacing:.16em; text-transform:uppercase; font-weight:800; padding:7px 14px; border-radius:7px; display:inline-block; margin-bottom:14px; color:#fff}
+  .layer-title.adv{background:var(--advisory)} .layer-title.iss{background:var(--issue)}
+  .adv{border-left:4px solid var(--advisory); background:var(--advisory-bg); padding:13px 18px; border-radius:0 10px 10px 0; margin-bottom:11px}
+  .adv .tag{font-size:11px; font-weight:800; color:var(--advisory); text-transform:uppercase}
+  .adv .txt{font-size:14px; margin-top:5px; line-height:1.68}
+  .iss{border-left:4px solid var(--issue); background:var(--issue-bg); padding:13px 18px; border-radius:0 10px 10px 0; margin-bottom:11px; font-size:14px}
+  .iss .iid{font-size:11px; font-weight:800; color:var(--issue); margin-right:8px}
+
+  details.ledger{margin-top:36px; border:1px solid var(--line); border-radius:12px; background:var(--panel); overflow:hidden}
+  details.ledger>summary{padding:14px 20px; cursor:pointer; font-weight:700; font-size:14px; background:#f0ece3; list-style:none}
+  details.ledger>summary::-webkit-details-marker{display:none}
+  details.ledger>summary::before{content:'▸ '} details.ledger[open]>summary::before{content:'▾ '}
+  .ledger-body{padding:16px 20px}
+  .ledger-body pre{white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; line-height:1.55}
+
+  footer{margin-top:52px; padding-top:18px; border-top:1px solid var(--line); font-size:12px; color:var(--muted)}
+  @media(max-width:900px){ .diagram{flex-direction:column} .atw{width:auto; position:static} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="kicker">PoC 설명자료 · 시스템 구조도</div>
+  </header>
+
+  <div class="def">
+    <div class="tag">Definition</div>
+    <h2>개발(개발 + 단위테스트) 단계의 <b style="color:var(--fe)">진단 도구</b></h2>
+    <div class="facts">
+      <div class="fact warn">⚠ 시나리오 테스트 <b>아님</b></div>
+      <div class="fact">설계 철학 <b>spec / data 분리</b></div>
+      <div class="fact">spec·값검증 <b>자동 수집·저장</b></div>
+    </div>
+  </div>
+
+  <div class="hint">위에서부터 <b>FE → Log → BE → CI/CD</b>. 세 층에서 뽑은 정보가 오른쪽 <b>aTworks</b>로 수렴합니다.</div>
+
+  <div class="diagram-wrap">
+    <div class="diagram">
+      <div class="stack" id="stack"></div>
+      <div class="atw" id="atw"></div>
+    </div>
+  </div>
+
+  <div id="layers"></div>
+
+  <details class="ledger">
+    <summary>전체 데이터 원장 (텍스트 · 누락 방지용)</summary>
+    <div class="ledger-body" id="ledgerBody"></div>
+  </details>
+
+  <footer>
+    CSS Grid/Flex 기반 — 박스 겹침 없이 자동 정렬. A001~A003 spec 표현, A001 추출정보 상세.<br>
+    이전 SVG 버전·원장은 모두 보존되며 어떤 항목도 삭제하지 않습니다.
+  </footer>
+</div>
+
+<script>
+const S = {
+  "meta": {
+    "title": "aTworks 소스 구조도 — 실제 시스템 관점",
+    "desc": "FE Source(화면·API·binding) → Log(실측 spec/key-value) → BE Source(CICD trigger·spec추출·validation) 3층. 오른쪽 aTworks로 수렴.",
+    "verticalLink": "같은 API가 FE→Log→BE 세 층에 어떻게 나타나는지 수직 점선으로 관통 표현",
+    "alignNote": "A001을 FE/Log/BE 세 층에서 동일 x좌표(기준선)에 정렬. 관통 점선이 수직 일직선."
+  },
+  "layers": {
+    "fe": {
+      "title": "FE Source (React / Vue)",
+      "screens": [
+        {
+          "id": "A",
+          "name": "A 화면",
+          "apis": [
+            {
+              "code": "A001",
+              "role": "조회",
+              "method": "GET"
+            },
+            {
+              "code": "A002",
+              "role": "등록",
+              "method": "POST"
+            },
+            {
+              "code": "A003",
+              "role": "변경",
+              "method": "PUT"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "name": "B 화면",
+          "apis": [
+            {
+              "code": "B001",
+              "role": "조회"
+            }
+          ]
+        }
+      ],
+      "binding": "A 화면 등록(A002) 후 → B 화면 조회(B001)로 이동",
+      "toAtworks": [
+        "API 화면 묶음(단일)",
+        "API flow(다수)"
+      ]
+    },
+    "log": {
+      "title": "Log 영역 (실측)",
+      "note": "화면에서 수행된 API의 실제 spec·데이터가 잡힘",
+      "specRole": "실측 spec (동적)",
+      "kv": [
+        {
+          "k": "cust_no",
+          "v": "12345 (type 관측)"
+        },
+        {
+          "k": "cust_nm",
+          "v": "홍길동"
+        },
+        {
+          "k": "amt",
+          "v": "1000 (>0 관측)"
+        }
+      ],
+      "toAtworks": [
+        "API spec(실측)",
+        "data(key-value)",
+        "값검증 보완(value)",
+        "API flow",
+        "수행결과"
+      ],
+      "sequence": [
+        "A001",
+        "B001",
+        "C001"
+      ],
+      "detailApi": "A001"
+    },
+    "be": {
+      "title": "BE Source Code 영역",
+      "specRole": "정적 spec (명세)",
+      "extract": [
+        "spec 추출"
+      ],
+      "validation": [
+        "validation checking 기준",
+        "param 성격 → 공통 값검증"
+      ],
+      "toAtworks": [
+        "API spec(정적)",
+        "값검증 기준"
+      ]
+    }
+  },
+  "cicd": {
+    "title": "CI/CD",
+    "role": "trigger",
+    "desc": "API 변경/신규 감지 → BE 분석 실행. local vs dev vs stage sync/비교."
+  },
+  "atworks": {
+    "title": "aTworks",
+    "sub": "개발/단위테스트 진단 도구",
+    "store": [
+      {
+        "label": "API spec",
+        "emphasis": "be",
+        "support": "log"
+      },
+      {
+        "label": "값검증 기준",
+        "dual": [
+          "log",
+          "be"
+        ],
+        "note": "Log=data 기준 값검증 / BE=spec 기준 값검증"
+      },
+      {
+        "label": "data (key-value)",
+        "solo": "log"
+      },
+      {
+        "label": "API 화면묶음 정보",
+        "solo": "fe"
+      },
+      {
+        "label": "화면 흐름",
+        "solo": "fe"
+      }
+    ],
+    "diagnose": [
+      "개발/유닛 진단",
+      "API 부실/편중",
+      "flow 작도"
+    ]
+  },
+  "verticalApis": [
+    "A001"
+  ],
+  "advisories": [
+    {
+      "id": "ADV-41",
+      "type": "교차검증 표현",
+      "text": "log spec(실측)과 BE spec(정적)을 나란히 두고 역할 라벨을 붙인 것은 중복이 아니라 '정적 vs 동적 교차검증' 관계를 드러냄. 두 spec이 불일치하면 aTworks가 진단 플래그를 띄우는 시나리오를 명시하면 도구 가치가 커짐."
+    },
+    {
+      "id": "ADV-42",
+      "type": "연결성 시각화",
+      "text": "같은 API(A001)가 FE→Log→BE 3층을 수직 관통하는 점선은 총수가 처음 강조한 '연결성 확보'의 핵심 시각 장치. 다만 API가 많아지면 관통선도 늘어 혼잡해지므로, 대표 1개(A001)만 관통시키고 나머지는 클릭 시 표시하는 방식 권고."
+    },
+    {
+      "id": "ADV-43",
+      "type": "CICD 위치",
+      "text": "CICD를 BE층 옆 세로 trigger로 배치하면 '변경 감지→BE 분석 발화'의 방아쇠 의미가 산다. CICD는 활용(무엇을 하느냐)이 아니라 '언제 수집을 발화하나'의 수단축이므로 aTworks 저장소로 직접 화살표를 쏘지 않고 BE 분석만 트리거하는 것이 논리적으로 정확."
+    }
+  ],
+  "openIssues": [
+    {
+      "id": "ISS-41",
+      "text": "FE의 화면 내 API 흐름(조회→등록)은 1층에서 '후보'로만 표시하고 실선 단정은 피해야 함(ADV-11 결론). 구조도에서 FE 내부 화살표를 실선/점선 중 무엇으로 그릴지 확정 필요."
+    },
+    {
+      "id": "ISS-31",
+      "text": "(미해결 이월) 값검증: 사용자 자연어 입력 vs 자동 기본setting 우선순위."
+    },
+    {
+      "id": "ISS-32",
+      "text": "(해소 방향) CICD는 활용축 밖, BE 분석 trigger 수단으로 확정 — ADV-43 반영. 총수 확인 시 종결."
+    }
+  ],
+  "specs": {
+    "A001": {
+      "method": "GET",
+      "path": "/api/cust/A001",
+      "summary": "고객 조회",
+      "detail": {
+        "params": [
+          {
+            "name": "cust_no",
+            "type": "String",
+            "rule": "@NotNull"
+          },
+          {
+            "name": "amt",
+            "type": "Number",
+            "rule": "@Min(0)"
+          }
+        ],
+        "response": [
+          {
+            "name": "cust_no",
+            "type": "String"
+          },
+          {
+            "name": "cust_nm",
+            "type": "String"
+          },
+          {
+            "name": "amt",
+            "type": "Number"
+          }
+        ],
+        "validation": [
+          "cust_no NotNull",
+          "amt >= 0 (음수 불가)"
+        ]
+      }
+    },
+    "A002": {
+      "method": "POST",
+      "path": "/api/cust/A002",
+      "summary": "고객 등록",
+      "detail": {
+        "params": [
+          {
+            "name": "cust_no",
+            "type": "String",
+            "rule": "@NotNull"
+          },
+          {
+            "name": "cust_nm",
+            "type": "String",
+            "rule": "@NotBlank"
+          }
+        ],
+        "validation": [
+          "cust_no NotNull",
+          "cust_nm 필수"
+        ]
+      }
+    },
+    "A003": {
+      "method": "PUT",
+      "path": "/api/cust/A003",
+      "summary": "고객 변경",
+      "detail": {
+        "params": [
+          {
+            "name": "cust_no",
+            "type": "String",
+            "rule": "@NotNull"
+          },
+          {
+            "name": "amt",
+            "type": "Number",
+            "rule": "@Min(0)"
+          }
+        ],
+        "validation": [
+          "amt >= 0"
+        ]
+      }
+    },
+    "B001": {
+      "method": "GET",
+      "path": "/api/cust/B001",
+      "summary": "B화면 조회",
+      "detail": {
+        "params": [
+          {
+            "name": "cust_no",
+            "type": "String",
+            "rule": "@NotNull"
+          }
+        ],
+        "validation": [
+          "cust_no NotNull"
+        ]
+      }
+    }
+  },
+  "columns": [
+    "A001",
+    "A002",
+    "A003",
+    "B001"
+  ],
+  "storeInfo": {
+    "fe": [
+      {
+        "label": "API 화면묶음",
+        "maps": "API 화면묶음 정보",
+        "src": [
+          "fe"
+        ]
+      },
+      {
+        "label": "화면 흐름",
+        "maps": "화면 흐름",
+        "src": [
+          "fe"
+        ]
+      }
+    ],
+    "log": [
+      {
+        "label": "API spec",
+        "maps": "spec"
+      },
+      {
+        "label": "data (key-value)",
+        "maps": "data(key-value)"
+      },
+      {
+        "label": "값검증 보완(value)",
+        "maps": "값검증 기준"
+      }
+    ],
+    "be": [
+      {
+        "label": "API spec",
+        "maps": "spec"
+      },
+      {
+        "label": "값검증 기준",
+        "maps": "값검증 기준"
+      }
+    ]
+  },
+  "flowConcept": {
+    "apiFlow": {
+      "source": "log",
+      "desc": "API의 흐름은 Log에서 파악. log에서 시계열로 흐르는, 사용자/서버로 구분한 API만의 단순 흐름.",
+      "limit": "log만으로는 이게 진짜 흐름인지 판단 불가."
+    },
+    "screenFlow": {
+      "source": "fe",
+      "desc": "화면에서 API가 어떻게 묶여 있는지(화면묶음) + 그 화면들 간 연계 흐름(화면 흐름)."
+    },
+    "crossTrack": {
+      "desc": "화면묶음 + 화면 흐름을 API 흐름과 접목해 일치하는 정보를 찾아, 화면과 API의 흐름을 함께 추적. 이렇게 흐름의 신뢰성을 확보.",
+      "relatedAdvisory": "ADV-13 (정적 vs 동적 교차검증)과 동일 원리"
+    }
+  }
+};
+const COLS = S.columns;              // ['A001','A002','A003','B001']
+const stack = document.getElementById('stack');
+
+// 각 API가 어느 화면 소속인지
+const screenOf = {A001:'A', A002:'A', A003:'A', B001:'B'};
+const specs = S.specs;
+
+/* ===== 1층 FE ===== */
+function feApiCard(code){
+  const s=specs[code]; const hl=code==='A001';
+  const roleMap={A001:'조회',A002:'등록',A003:'변경',B001:'조회'};
+  return `<div class="api-card${hl?' hl':''}">
+      <span class="code">${code}</span><span class="role">${roleMap[code]}</span><span class="method">${s.method}</span>
+    </div>`;
+}
+// A화면(A001~A003) 3칸, B화면(B001) 1칸 — 4컬럼 그리드 위에 화면 박스가 span
+let feHtml = `<div class="layer fe"><span class="layer-tag">① FE 소스코드</span>
+  <div class="api-grid4">
+    <div class="grp-label grp-A-label" style="grid-column:1 / span 3">A 화면</div>
+    <div class="grp-label grp-B-label" style="grid-column:4 / span 1">B 화면</div>
+    ${feApiCard('A001')}${feApiCard('A002')}${feApiCard('A003')}${feApiCard('B001')}
+  </div>
+  <div class="info-set">
+    <div class="info-set-t">이 층에서 저장하는 정보</div>
+    ${S.storeInfo.fe.map(x=>`<div class="info-card fe-info" data-map="${x.maps||''}">${x.label}</div>`).join('')}
+  </div>
+</div>`;
+stack.innerHTML += feHtml;
+stack.innerHTML += `<div class="connector"><span class="lbl">수행 → 로그 적재</span></div>`;
+
+/* ===== 2층 Log ===== */
+const log=S.layers.log;
+function logCardOnly(code){
+  const hl=code===log.detailApi;
+  return `<div class="log-card${hl?' hl':''}"><span class="code">${code}</span><span class="tag2">log</span></div>`;
+}
+function logDetail(){
+  return `<div class="info-set">
+    <div class="info-set-t">이 층에서 저장하는 정보</div>
+    ${S.storeInfo.log.map(x=>`<div class="info-card log-info" data-map="${x.maps||''}">${x.label}</div>`).join('')}
+  </div>`;
+}
+let logHtml = `<div class="layer log"><span class="layer-tag">② BE Log 또는 aTworks Log</span>
+  <div class="api-grid4">
+    <div class="grp-label log-grp-label" style="grid-column:1 / span 3">A 화면 로그</div>
+    <div class="grp-label log-grp-label" style="grid-column:4 / span 1">B 화면 로그</div>
+    ${logCardOnly('A001')}${logCardOnly('A002')}${logCardOnly('A003')}${logCardOnly('B001')}
+  </div>
+  ${logDetail()}
+</div>`;
+stack.innerHTML += logHtml;
+stack.innerHTML += `<div class="connector"><span class="lbl">변경/신규 → BE 분석</span></div>`;
+
+/* ===== 3층 BE ===== */
+function beCardOnly(code){
+  const s=specs[code]; const hl=code==='A001';
+  return `<div class="spec-card${hl?' hl':''}">
+      <span class="sc-code">${code}</span><span class="sc-method">${s.method}</span>
+    </div>`;
+}
+function beDetail(code){
+  return `<div class="info-set">
+    <div class="info-set-t">이 층에서 저장하는 정보</div>
+    ${S.storeInfo.be.map(x=>`<div class="info-card be-info" data-map="${x.maps||''}">${x.label}</div>`).join('')}
+  </div>`;
+}
+let beHtml = `<div class="layer be"><span class="layer-tag">③ BE 소스코드</span>
+  <div class="api-grid4">
+    <div class="grp-label be-grp-label" style="grid-column:1 / span 3">A 화면 API</div>
+    <div class="grp-label be-grp-label" style="grid-column:4 / span 1">B 화면 API</div>
+    ${beCardOnly('A001')}${beCardOnly('A002')}${beCardOnly('A003')}${beCardOnly('B001')}
+  </div>
+  ${beDetail('A001')}
+</div>`;
+stack.innerHTML += beHtml;
+stack.innerHTML += `<div class="connector"><span class="lbl">trigger (발화)</span></div>`;
+
+/* ===== CICD 맨 아래 ===== */
+let ccHtml = `<div class="layer cicd"><span class="layer-tag">④ CI/CD<span class="q">trigger · 언제 수집을 발화하나</span></span>
+  <div class="cicd-body">
+    <span class="cicd-role">trigger</span>
+    <div class="cicd-desc">API <b>변경/신규 감지</b> → BE 분석 발화
+      <div style="margin-top:6px">
+        <span class="cicd-chip">local vs dev vs stage</span>
+        <span class="cicd-chip">sync / 비교</span>
+        <span class="cicd-chip">변경/신규 spec 파싱</span>
+      </div>
+    </div>
+  </div>
+</div>`;
+stack.innerHTML += ccHtml;
+
+/* ===== aTworks ===== */
+const atw=S.atworks;
+document.getElementById('atw').innerHTML = `<h3>aTworks</h3>
+  <div class="sec-t">저장 (spec / data 분리)</div>
+  <div class="src-legend">
+    <span><span class="src-dot fe"></span>FE</span>
+    <span><span class="src-dot log"></span>Log</span>
+    <span><span class="src-dot be"></span>BE</span>
+    <span><span class="src-dot be support"></span>서포트</span>
+  </div>
+  ${atw.store.map(s=>{
+    const nameMap={fe:'FE',log:'Log',be:'BE'};
+    const chip=(c,sup)=>`<span class="src-chip ${c}${sup?' support':''}"><span class="src-dot ${c}${sup?' support':''}"></span>${nameMap[c]}${sup?' 서포트':''}</span>`;
+    let dots='';
+    if(s.solo) dots=chip(s.solo);
+    else if(s.dual) dots=s.dual.map(c=>chip(c)).join('');
+    else if(s.emphasis) dots=chip(s.emphasis)+chip(s.support,true);
+    return `<div class="item store-item" data-store="${s.label}">
+      <span class="store-dots">${dots}</span><span class="store-label">${s.label}</span>
+      ${s.note?`<span class="store-note">${s.note}</span>`:''}
+    </div>`;
+  }).join('')}`;
+
+/* ===== 레이어 ===== */
+(function(){
+  const root=document.getElementById('layers');
+  const advWrap=document.createElement('div'); advWrap.className='adv-layer';
+  advWrap.innerHTML=`<span class="layer-title adv">Claude 자문 · Advisory</span>`;
+  S.advisories.forEach(a=>{ advWrap.innerHTML+=`<div class="adv"><span class="tag">${a.type}</span><div class="txt">${a.text}</div></div>`; });
+  root.appendChild(advWrap);
+  const issWrap=document.createElement('div'); issWrap.className='adv-layer';
+  issWrap.innerHTML=`<span class="layer-title iss">미결 이슈 · Open Issues</span>`;
+  S.openIssues.forEach(i=>{ issWrap.innerHTML+=`<div class="iss"><span class="iid">${i.id}</span>${i.text}</div>`; });
+  root.appendChild(issWrap);
+})();
+document.getElementById('ledgerBody').innerHTML = `<pre>${JSON.stringify(S,null,2).replace(/</g,'&lt;')}</pre>`;
+
+
+</script>
+</body>
+</html>

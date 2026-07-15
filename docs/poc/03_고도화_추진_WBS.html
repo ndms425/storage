@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aTworks 고도화 추진 일정 (WBS)</title>
+<style>
+  :root {
+    --navy: #1E2761;
+    --ice: #CADCFC;
+    --light: #EEF3FB;
+    --dark: #2B2F3A;
+    --mut: #6B7A99;
+    --planner: #2F6FED;   /* 정직원(기획) */
+    --dev: #1E2761;       /* 개발자 */
+    --all: #0E9F6E;       /* 전체 */
+    --line: #E3E9F4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: #F7F9FC; color: var(--dark); padding: 40px 24px;
+  }
+  .sheet {
+    max-width: 1200px; margin: 0 auto; background: #fff;
+    border-radius: 16px; padding: 44px 48px;
+    box-shadow: 0 6px 30px rgba(30,39,97,.08);
+  }
+  h1 { color: var(--navy); font-size: 30px; margin-bottom: 6px; }
+  .sub { color: var(--mut); font-size: 14px; margin-bottom: 8px; }
+  .legend { display: flex; gap: 18px; margin: 18px 0 26px; font-size: 13px; align-items: center; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+  .badge {
+    margin-left: auto; background: var(--navy); color: #fff;
+    padding: 10px 18px; border-radius: 10px; font-size: 13px; text-align: center;
+  }
+  .badge b { display: block; font-size: 16px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    background: var(--navy); color: #fff; padding: 10px 12px;
+    font-weight: 600; text-align: left; font-size: 12.5px; white-space: nowrap;
+  }
+  thead th:first-child { border-radius: 8px 0 0 0; }
+  thead th:last-child { border-radius: 0 8px 0 0; }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:hover td { background: #FAFCFF; }
+  .phase td {
+    background: var(--light); color: var(--navy); font-weight: 700;
+    font-size: 13px; padding: 8px 12px;
+  }
+  .task { font-weight: 500; }
+  .note { color: var(--mut); font-size: 11.5px; margin-top: 2px; }
+  .owner {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 700; color: #fff; white-space: nowrap;
+  }
+  .owner.planner { background: var(--planner); }
+  .owner.dev { background: var(--dev); }
+  .owner.all { background: var(--all); }
+  .period { white-space: nowrap; color: var(--mut); font-size: 12.5px; }
+
+  /* Gantt */
+  .gantt-cell { width: 46%; min-width: 420px; }
+  .gantt-head { display: flex; font-size: 10.5px; color: var(--ice); }
+  .gantt-head span { flex: 1; text-align: left; border-left: 1px solid rgba(255,255,255,.25); padding-left: 4px; }
+  .gantt-head span:first-child { border-left: none; }
+  .track { position: relative; height: 18px; background: repeating-linear-gradient(to right, transparent, transparent calc(100%/12 - 1px), var(--line) calc(100%/12 - 1px), var(--line) calc(100%/12)); border-radius: 4px; }
+  .bar { position: absolute; top: 3px; height: 12px; border-radius: 6px; opacity: .92; }
+  .bar.planner { background: var(--planner); }
+  .bar.dev { background: var(--dev); }
+  .bar.all { background: var(--all); }
+  .bar.optional {
+    background: repeating-linear-gradient(45deg, var(--dev), var(--dev) 5px, #8A94C4 5px, #8A94C4 10px);
+    opacity: .75; border: 1px dashed var(--navy);
+  }
+  .tag-opt {
+    display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700; color: var(--navy);
+    border: 1px dashed var(--navy); background: var(--light); vertical-align: 1px;
+  }
+  .milestone { position: absolute; top: 0; width: 14px; height: 14px; transform: translateX(-7px) rotate(45deg); border-radius: 3px; margin-top: 2px; }
+  .milestone.all { background: var(--all); }
+  .milestone.dev { background: var(--dev); }
+
+  .foot { margin-top: 20px; color: var(--mut); font-size: 12px; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .sheet { box-shadow: none; padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>aTworks 고도화 추진 일정 (WBS)</h1>
+  <div class="sub">PoC 종료 이후 설계 → 개발 로드맵 &nbsp;·&nbsp; 2026. 7/27 ~ 10/1</div>
+
+  <div class="legend">
+    <span class="chip"><span class="dot" style="background:var(--planner)"></span>정직원 (기획)</span>
+    <span class="chip"><span class="dot" style="background:var(--dev)"></span>개발자</span>
+    <span class="chip"><span class="dot" style="background:var(--all)"></span>전체</span>
+    <span class="badge">개발 기간 <b>8/18 → 10/1 (약 6.5주)</b></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px">No</th>
+        <th>작업 항목</th>
+        <th>담당</th>
+        <th>기간</th>
+        <th class="gantt-cell">
+          <div class="gantt-head">
+            <span>7/13</span><span>7/20</span><span>7/27</span><span>8/3</span><span>8/10</span><span>8/17</span>
+            <span>8/24</span><span>8/31</span><span>9/7</span><span>9/14</span><span>9/21</span><span>9/28</span>
+          </div>
+        </th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div class="foot">※ 기획 산출물(기능설계 · Usecase · Mockup)은 정직원 주도, 기술 산출물(Spec/Arch · Backend 설계 · 개발)은 개발자 주도 &nbsp;·&nbsp; ◆ 마일스톤 &nbsp;·&nbsp; 빗금 바 = Optional (피저빌리티 검증 후 확정)</div>
+</div>
+
+<script>
+  // 타임라인 범위: 7/13 ~ 10/4 (12주)
+  const T0 = new Date(2026, 6, 13);
+  const T1 = new Date(2026, 9, 5);
+  const pct = d => ((d - T0) / (T1 - T0) * 100);
+
+  const D = (m, d) => new Date(2026, m - 1, d);
+
+  const data = [
+    { phase: "Phase 1 · 기능 설계  (~7/27)" },
+    { no: 1, task: "PoC 종료", owner: "개발자", cls: "dev", s: D(7,15), e: D(7,27), period: "~ 7/27" },
+    { no: 2, task: "기능 설계 확정", owner: "정직원", cls: "planner", s: D(7,15), e: D(7,27), period: "~ 7/27" },
+    { no: 3, task: "Usecase 정의", owner: "정직원", cls: "planner", s: D(7,15), e: D(7,27), period: "~ 7/27" },
+    { phase: "Phase 2 · 상세 설계  (~8/14)" },
+    { no: 4, task: "Mockup 제작", owner: "정직원", cls: "planner", s: D(7,28), e: D(8,14), period: "7/28 ~ 8/14" },
+    { no: 5, task: "Spec · 기술 · Arch 정의", owner: "개발자", cls: "dev", s: D(7,28), e: D(8,14), period: "7/28 ~ 8/14" },
+    { no: 6, task: "Backend 설계 시작", owner: "개발자", cls: "dev", s: D(7,28), e: D(8,14), period: "7/28 ~ 8/14" },
+    { no: 7, task: "기술 설계 · Generative UI", note: "추가 피저빌리티 검증 필요 → 검증 결과에 따라 진행 여부 결정", owner: "개발자", cls: "dev", optional: true, s: D(7,28), e: D(8,14), period: "7/28 ~ 8/14" },
+    { phase: "Phase 3 · 고도화 개발  (8/18 ~ 10/1)" },
+    { no: 8, task: "고도화 착수 · 본 개발", owner: "개발자", cls: "dev", s: D(8,18), e: D(10,1), period: "8/18 ~ 10/1" },
+    { no: 9, task: "고도화 완료 · 결과 공유", owner: "전체", cls: "all", milestone: D(10,1), period: "10/1" },
+  ];
+
+  const tbody = document.getElementById("rows");
+  data.forEach(r => {
+    const tr = document.createElement("tr");
+    if (r.phase) {
+      tr.className = "phase";
+      tr.innerHTML = `<td colspan="5">${r.phase}</td>`;
+    } else {
+      let bar;
+      if (r.milestone) {
+        bar = `<span class="milestone ${r.cls}" style="left:${pct(r.milestone)}%"></span>`;
+      } else {
+        const l = pct(r.s), w = pct(r.e) - l;
+        bar = `<span class="bar ${r.optional ? "optional" : r.cls}" style="left:${l}%;width:${w}%"></span>`;
+      }
+      tr.innerHTML = `
+        <td style="color:var(--mut)">${r.no}</td>
+        <td><div class="task">${r.task}${r.optional ? '<span class="tag-opt">Optional</span>' : ""}</div>${r.note ? `<div class="note">${r.note}</div>` : ""}</td>
+        <td><span class="owner ${r.cls}">${r.owner}</span></td>
+        <td class="period">${r.period}</td>
+        <td class="gantt-cell"><div class="track">${bar}</div></td>`;
+    }
+    tbody.appendChild(tr);
+  });
+</script>
+</body>
+</html>
